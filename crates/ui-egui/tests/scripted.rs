@@ -597,11 +597,12 @@ fn eyedropper_picks_a_key_color_on_a_selected_clip() {
     d.ok("ui.click", json!({"id": "effectControls.color_key.color.eyedropper"}));
     d.frames(2);
     d.ok("ui.click", json!({"id": "program.picture"}));
-    for _ in 0..200 {
-        if color(&mut d) != before {
-            break;
-        }
+    // the sampled frame renders in the background: wait by the clock, not a frame count (a busy CI
+    // runner drawing on a software adapter takes far longer than 200 frames)
+    let t0 = std::time::Instant::now();
+    while color(&mut d) == before && t0.elapsed().as_secs() < 60 {
         d.frames(1);
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
     assert_ne!(color(&mut d), before, "the eyedropper filled Key Color from the Program picture");
 }
