@@ -1,0 +1,21 @@
+[package]
+name = "lumen-captions"
+description = "Lumen Video Editor captions: SRT, WebVTT, SCC, MCC, EBU STL and TTML/IMSC1/DFXP import/export, caption layout and burn-in rasterisation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+lumen-time = { workspace = true }
+lumen-color = { workspace = true }
+lumen-project = { workspace = true }
+lumen-text = { workspace = true }
+thiserror = { workspace = true }
+roxmltree = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

@@ -1,0 +1,8 @@
+asset:        lumen-tiny.svg
+title:        Lumen Video Editor app icon, simplified vector for 16-24 px
+author:       SifG22
+source:       original work (drawn as SVG for this build of Lumen Video Editor)
+license:      MIT OR Apache-2.0
+license-file: assets/app-icon/LICENSE.txt
+added:        2026-10-19 by Claude (agent) for SifG22
+notes:        Plain clapper arm and body with the play button, no stripes.

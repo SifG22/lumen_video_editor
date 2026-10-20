@@ -1,0 +1,22 @@
+[package]
+name = "lumen-project"
+description = "Lumen Video Editor document model: projects, bins, clips, sequences, tracks, effects, keyframes, markers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+lumen-time = { workspace = true }
+lumen-geom = { workspace = true }
+lumen-color = { workspace = true }
+lumen-media = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

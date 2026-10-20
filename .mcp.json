@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "lumen": {
+      "command": "target/release/lumen-cli",
+      "args": ["mcp", "--bridge", "127.0.0.1:9876"]
+    },
+    "lumen-headless": {
+      "command": "target/release/lumen-cli",
+      "args": ["mcp", "--demo"]
+    }
+  }
+}

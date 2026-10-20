@@ -1,0 +1,8 @@
+asset:        lumen.ico
+title:        Lumen Video Editor app icon, Windows .ico (16-256 px)
+author:       SifG22
+source:       original work (drawn as SVG for this build of Lumen Video Editor)
+license:      MIT OR Apache-2.0
+license-file: assets/app-icon/LICENSE.txt
+added:        2026-10-19 by Claude (agent) for SifG22
+notes:        Renders of lumen-tiny.svg (16-24 px), lumen-small.svg (32-40 px) and lumen.svg (48-256 px) packed by cargo xtask ico in packaging/icons.sh. Embedded in lumen.exe by apps/lumen/build.rs.

@@ -1,0 +1,38 @@
+[package]
+name = "lumen-cli"
+description = "Lumen Video Editor headless CLI and MCP server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "lumen-cli"
+path = "src/main.rs"
+
+[features]
+default = []
+# Speech-to-text (Text panel ▸ Transcribe) with Whisper on the CPU, and model downloads.
+whisper = ["lumen-engine/whisper", "lumen-engine/speech-download"]
+
+[dependencies]
+lumen-engine = { workspace = true }
+lumen-export = { workspace = true }
+lumen-project = { workspace = true }
+lumen-render = { workspace = true }
+lumen-time = { workspace = true }
+lumen-gpu = { workspace = true }
+lumen-media = { workspace = true }
+lumen-codecs = { workspace = true }
+lumen-platform = { workspace = true }
+lumen-mxf = { workspace = true }
+lumen-mpegts = { workspace = true }
+lumen-ogg = { workspace = true }
+lumen-automation = { workspace = true }
+serde_json = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[dev-dependencies]
+lumen-testkit = { workspace = true }

@@ -1,0 +1,68 @@
+TÉRMINOS Y CONDICIONES DE USO — LUMEN VIDEO EDITOR
+SifG22 · https://sifg.net · Versión de los términos: 19 de octubre de 2026
+
+Al instalar o usar Lumen Video Editor ("Lumen Video", "la aplicación") aceptas estos términos. Si
+no estás de acuerdo, no instales ni uses la aplicación.
+
+1. Quién la ofrece
+Lumen Video Editor es una aplicación de SifG22 (https://sifg.net), en adelante "SifG22".
+
+2. Licencia de uso
+SifG22 te concede una licencia gratuita, personal, no exclusiva y revocable para instalar y usar
+Lumen Video en tus dispositivos, con fines personales o profesionales. Los vídeos, proyectos
+(.lumenv) y demás archivos que crees con Lumen Video son tuyos y puedes usarlos libremente.
+
+3. Marca y elementos propios
+Los nombres "Lumen", "Lumen Video" y "Lumen Video Editor", y los logotipos y demás elementos de
+marca de SifG22 no se pueden usar para identificar otros productos ni presentar como tuya una
+versión modificada de la aplicación sin permiso. El icono de la aplicación se distribuye con la
+licencia indicada en la carpeta "licencias".
+
+4. Software de código abierto y de terceros
+Lumen Video incluye software de código abierto usado bajo la licencia MIT. Ese código sigue sujeto
+a su licencia original, que estos términos no limitan. Lumen Video incluye además otros componentes de terceros (fuentes,
+traducciones, etc.) con sus propias licencias. Todas están en la pestaña "Licencias" de
+Ayuda > Acerca de y en la carpeta "licencias" de la instalación.
+Lumen Video no está afiliado ni respaldado por Adobe.
+
+5. Uso aceptable
+No uses Lumen Video para crear o difundir contenido ilegal, para vulnerar derechos de terceros
+(propiedad intelectual, música, imagen, privacidad) ni para fines fraudulentos. Tú eres
+responsable del contenido que creas y de tener los derechos sobre el vídeo, el audio y las
+imágenes que editas y publicas.
+
+6. Actualizaciones y conexión a internet
+Lumen Video funciona sin conexión. Para avisarte de nuevas versiones, como mucho una vez al día
+consulta el aviso de la última versión publicada en GitHub
+(https://github.com/SifG22/lumen_video_editor/releases/latest/download/latest.json);
+esa consulta solo transmite lo que cualquier petición web transmite (tu dirección IP y la versión
+de la aplicación en el agente de usuario). Si aceptas una actualización, Lumen Video descarga el
+instalador, comprueba su huella SHA-256 y lo ejecuta. Puedes desactivar la comprobación definiendo
+la variable de entorno LUMEN_VIDEO_NO_UPDATE=1.
+
+7. Privacidad
+Lumen Video no recoge, vende ni envía tus vídeos, proyectos ni datos personales. Tus archivos y
+preferencias se guardan solo en tu dispositivo. Las funciones opcionales que descargan modelos
+(por ejemplo, transcripción) solo descargan esos modelos; tu material se procesa en tu equipo.
+
+8. Sin garantía
+Lumen Video se ofrece "TAL CUAL", sin garantías de ningún tipo, expresas ni implícitas, incluidas
+las de comerciabilidad, idoneidad para un fin concreto o ausencia de errores. Guarda copias de
+seguridad de tu trabajo.
+
+9. Limitación de responsabilidad
+En la medida máxima permitida por la ley, SifG22 no será responsable de daños directos,
+indirectos, pérdida de datos, de trabajo o de beneficios derivados del uso o de la imposibilidad de
+usar Lumen Video. Nada de lo anterior limita los derechos que la ley te reconozca como consumidor.
+
+10. Cambios en los términos y en la aplicación
+SifG22 puede actualizar estos términos y la aplicación. La versión vigente se incluye con cada
+versión de Lumen Video y se publica en https://sifg.net. Seguir usando Lumen Video tras un cambio
+supone aceptar los términos nuevos.
+
+11. Ley aplicable
+Estos términos se rigen por la legislación española, sin perjuicio de las normas imperativas de
+protección de los consumidores de tu país de residencia.
+
+12. Contacto
+Dudas, avisos o sugerencias: https://sifg.net

@@ -1,0 +1,56 @@
+# Lumen Video Editor: formato y tests en Windows. Los nombres de los tests que fallan y los primeros mensajes de
+# error salen como anotaciones del job (visibles en la página del run y en la API pública), así se
+# pueden revisar sin descargar los registros.
+name: Lumen Video tests
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: lumen-video-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: lumen-video-tests
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          cargo test --workspace --locked --no-fail-fast 2>&1 | Tee-Object -FilePath test.log
+          $code = $LASTEXITCODE
+          $failed = @(Select-String -Path test.log -Pattern '^test (.+) \.\.\. FAILED' | ForEach-Object { $_.Matches[0].Groups[1].Value })
+          if ($failed.Count -gt 0) {
+            Write-Output "::error title=$($failed.Count) tests fallan::$($failed -join ' ; ')"
+          }
+          $errors = @(Select-String -Path test.log -Pattern '^error(\[E\d+\])?: ' -Context 0,3 | Select-Object -First 5)
+          foreach ($e in $errors) {
+            $msg = ((@($e.Line) + $e.Context.PostContext) -join ' | ') -replace '%', '%25'
+            Write-Output "::error title=Error de compilacion::$msg"
+          }
+          $panics = @(Select-String -Path test.log -Pattern 'panicked at' -Context 0,4 | Select-Object -First 8)
+          foreach ($p in $panics) {
+            $msg = (@($p.Line) + $p.Context.PostContext) -join ' | '
+            $msg = $msg -replace '%', '%25' -replace "`r", '' -replace "`n", ' '
+            Write-Output "::error title=Panic::$msg"
+          }
+          exit $code

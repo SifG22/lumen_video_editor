@@ -1,0 +1,4 @@
+[alias]
+# `cargo lumen`: build and open Lumen Video Editor
+lumen = "run --package lumen --"
+xtask = "run --quiet --package xtask --"

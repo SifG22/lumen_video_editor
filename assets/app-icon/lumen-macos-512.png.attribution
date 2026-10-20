@@ -1,0 +1,8 @@
+asset:        lumen-macos-512.png
+title:        Lumen Video Editor app icon, macOS runtime Dock icon (512 px, Apple icon grid)
+author:       SifG22
+source:       original work (drawn as SVG for this build of Lumen Video Editor)
+license:      MIT OR Apache-2.0
+license-file: assets/app-icon/LICENSE.txt
+added:        2026-10-19 by Claude (agent) for SifG22
+notes:        Rendered from lumen.svg on the 824/1024 grid by packaging/icons.sh. Embedded by apps/lumen/src/main.rs.

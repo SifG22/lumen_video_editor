@@ -1,0 +1,8 @@
+asset:        icon.png
+title:        Lumen Video Editor app icon, 256 px (for the README)
+author:       SifG22
+source:       original work (copy of the 256 px app icon render)
+license:      MIT OR Apache-2.0
+license-file: assets/app-icon/LICENSE.txt
+added:        2026-10-20 by Claude (agent) for SifG22
+notes:        Same file as assets/app-icon/hicolor/256x256; see assets/app-icon/README.md.

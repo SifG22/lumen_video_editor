@@ -1,0 +1,8 @@
+asset:        net.sifg.lumen.svg
+title:        Lumen Video Editor app icon, Linux hicolor theme scalable
+author:       SifG22
+source:       original work (drawn as SVG for this build of Lumen Video Editor)
+license:      MIT OR Apache-2.0
+license-file: assets/app-icon/LICENSE.txt
+added:        2026-10-19 by Claude (agent) for SifG22
+notes:        Copy of lumen.svg, made by packaging/icons.sh.

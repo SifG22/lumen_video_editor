@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Lumen Video Editor">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a787ff"/>
+      <stop offset="1" stop-color="#7a4bef"/>
+    </linearGradient>
+    <mask id="arm-stripes" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#fff"/>
+      <polygon points="158,160 200,160 166,220 124,220"/>
+      <polygon points="242,160 284,160 250,220 208,220"/>
+      <polygon points="326,160 368,160 334,220 292,220"/>
+    </mask>
+    <mask id="body-cuts" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#fff"/>
+      <polygon points="124,240 166,240 200,288 158,288"/>
+      <polygon points="208,240 250,240 284,288 242,288"/>
+      <polygon points="292,240 334,240 368,288 326,288"/>
+      <rect x="100" y="288" width="312" height="14"/>
+      <polygon points="232,322 232,386 290,354" stroke="#000" stroke-width="14" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#tile)"/>
+  <g fill="#ffffff">
+    <g transform="rotate(-14 112 228)">
+      <rect x="112" y="160" width="288" height="60" rx="14" mask="url(#arm-stripes)"/>
+    </g>
+    <rect x="112" y="240" width="288" height="168" rx="26" mask="url(#body-cuts)"/>
+  </g>
+</svg>

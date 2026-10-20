@@ -1,0 +1,39 @@
+[package]
+name = "lumen-export"
+description = "Export pipeline: parallel render → encode → mux, presets, progress/cancel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+lumen-time = { workspace = true }
+lumen-frame = { workspace = true }
+lumen-color = { workspace = true }
+lumen-media = { workspace = true }
+lumen-project = { workspace = true }
+lumen-render = { workspace = true }
+lumen-audio-dsp = { workspace = true }
+lumen-geom = { workspace = true }
+lumen-text = { workspace = true }
+lumen-isobmff = { workspace = true }
+lumen-prores = { workspace = true }
+lumen-dnx = { workspace = true }
+lumen-apv = { workspace = true }
+lumen-mxf = { workspace = true }
+lumen-aac = { workspace = true }
+lumen-flac = { workspace = true }
+lumen-h264enc = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+rayon = { workspace = true }
+web-time = "1"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "tiff", "bmp"] }
+
+[dev-dependencies]
+lumen-testkit = { workspace = true }
+lumen-codecs = { workspace = true }

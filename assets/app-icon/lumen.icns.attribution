@@ -1,0 +1,8 @@
+asset:        lumen.icns
+title:        Lumen Video Editor app icon, macOS .icns
+author:       SifG22
+source:       original work (drawn as SVG for this build of Lumen Video Editor)
+license:      MIT OR Apache-2.0
+license-file: assets/app-icon/LICENSE.txt
+added:        2026-10-19 by Claude (agent) for SifG22
+notes:        Renders of lumen-tiny.svg (16 px), lumen-small.svg (32 px) and lumen.svg (64-1024 px) on the Apple icon grid, made by packaging/icons.sh.

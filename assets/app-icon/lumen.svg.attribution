@@ -1,0 +1,8 @@
+asset:        lumen.svg
+title:        Lumen Video Editor app icon, master vector (white clapperboard with a play button on a Lumen Video Editor violet tile)
+author:       SifG22
+source:       original work (drawn as SVG for this build of Lumen Video Editor)
+license:      MIT OR Apache-2.0
+license-file: assets/app-icon/LICENSE.txt
+added:        2026-10-19 by Claude (agent) for SifG22
+notes:        Master for 48 px and up. 512 viewBox, rounded tile rx=112, vertical fade #a787ff to #7a4bef, white glyph. See assets/app-icon/README.md.

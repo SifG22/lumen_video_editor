@@ -1,0 +1,17 @@
+[package]
+name = "lumen-flac"
+description = "Clean-room FLAC encoder (RFC 9639)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+lumen-bitstream = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+lumen-testkit = { workspace = true }

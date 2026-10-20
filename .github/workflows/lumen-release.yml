@@ -1,0 +1,147 @@
+# Lumen Video Editor para Windows: compila x64 y ARM64 y los publica como descargas de una GitHub
+# Release, con el aviso de actualizacion latest.json que lee la app.
+#
+# Se lanza al subir una etiqueta de version (git tag v0.0.1 && git push origin v0.0.1) o a mano desde
+# la pestana Actions ("Run workflow", solo compila y deja los paquetes como artefactos). ARM64 se
+# compila en cruzado en la maquina x64, asi que no hace falta un runner ARM.
+name: Lumen Video release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            triple: x86_64-pc-windows-msvc
+          - arch: arm64
+            triple: aarch64-pc-windows-msvc
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.triple }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: lumen-video-${{ matrix.triple }}
+      - name: Check the tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path crates/ui-egui/src/brand.rs -Pattern 'pub const VERSION: &str = "([^"]+)"').Matches[0].Groups[1].Value
+          if ("v$v" -ne "${{ github.ref_name }}") { throw "La etiqueta ${{ github.ref_name }} no coincide con VERSION = $v en brand.rs" }
+      - name: Build and package
+        shell: pwsh
+        # Inno Setup 6 viene instalado en las maquinas windows-latest de GitHub. Los instaladores van
+        # adjuntos a esta Release, asi que latest.json apunta ahi.
+        env:
+          LUMEN_BUILD_SHA: ${{ github.sha }}
+        run: |
+          $env:LUMEN_BUILD_DATE = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
+          packaging/lumen/empaquetar.ps1 -Arch ${{ matrix.arch }} -Instalador -BaseUrl "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
+          Move-Item dist/latest.json dist/latest-${{ matrix.arch }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lumen-video-windows-${{ matrix.arch }}
+          path: |
+            dist/*.zip*
+            dist/LumenVideo-Setup-*
+            dist/latest-*.json
+
+  # Install each installer on a machine of its architecture (an x64 runner and a Windows 11 ARM64
+  # runner), check the installed exe is built for it, start it and ask it, over its local control
+  # channel, whether its window is drawing. Nothing is published unless both run.
+  verify:
+    needs: windows
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            machine: "0x8664"
+          - arch: arm64
+            runner: windows-11-arm
+            machine: "0xAA64"
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: lumen-video-windows-${{ matrix.arch }}
+          path: dist
+      - name: Install, check and start
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $setup = Get-ChildItem dist -Filter "LumenVideo-Setup-*-${{ matrix.arch }}.exe" | Select-Object -First 1
+          if (-not $setup) { throw "no ${{ matrix.arch }} installer" }
+          $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CURRENTUSER" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "the installer failed with exit code $($p.ExitCode)" }
+          $exe = Join-Path $env:LOCALAPPDATA "Programs\Lumen Video\LumenVideo.exe"
+          if (-not (Test-Path $exe)) { throw "LumenVideo.exe was not installed at $exe" }
+          $bytes = [System.IO.File]::ReadAllBytes($exe)
+          $pe = [BitConverter]::ToInt32($bytes, 0x3C)
+          $machine = [BitConverter]::ToUInt16($bytes, $pe + 4)
+          if ($machine -ne [Convert]::ToUInt16("${{ matrix.machine }}", 16)) { throw ("LumenVideo.exe is for machine 0x{0:X}, not ${{ matrix.arch }}" -f $machine) }
+          "LumenVideo.exe is ${{ matrix.arch }} (machine 0x{0:X})" -f $machine
+          $env:LUMEN_VIDEO_NO_UPDATE = "1"
+          $app = Start-Process $exe -ArgumentList "--control","9876","--demo" -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+            Start-Sleep -Seconds 2
+            if ($app.HasExited) { throw "Lumen Video Editor exited with code $($app.ExitCode)" }
+            try {
+              $c = New-Object System.Net.Sockets.TcpClient("127.0.0.1", 9876)
+              $s = $c.GetStream(); $w = New-Object System.IO.StreamWriter($s); $r = New-Object System.IO.StreamReader($s)
+              $w.WriteLine('{"id":1,"method":"ui.inspect"}'); $w.Flush()
+              $reply = $r.ReadLine(); $c.Close()
+              if ($reply -match '"ok":\s*true') { $ok = $true; "the app is running and drawing its window" }
+            } catch { }
+          }
+          if (-not $ok) { throw "Lumen Video Editor did not answer within 2 minutes" }
+          Stop-Process -Id $app.Id -Force
+
+  release:
+    needs: [windows, verify]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Merge latest.json
+        # Un solo aviso para las dos arquitecturas. La app lo lee de
+        # releases/latest/download/latest.json, asi que va adjunto a cada Release. Las novedades
+        # salen de packaging/lumen/NOVEDADES.md (la seccion de esta version), si la hay.
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          notes=$(awk -v v="## $version" '$0==v{f=1;next} /^## /{f=0} f' packaging/lumen/NOVEDADES.md 2>/dev/null | sed '/^$/d' | head -c 600)
+          jq -s --arg notes "$notes" '(.[0] * .[1]) | .notes = $notes' dist/latest-x64.json dist/latest-arm64.json > dist/latest.json
+          rm dist/latest-x64.json dist/latest-arm64.json
+          cat dist/latest.json
+      - name: Version-less copies
+        # Nombres fijos, para que una web siempre pueda enlazar
+        # https://github.com/<repo>/releases/latest/download/LumenVideo-Setup-x64.exe
+        run: |
+          cp dist/LumenVideo-Setup-*-x64.exe dist/LumenVideo-Setup-x64.exe
+          cp dist/LumenVideo-Setup-*-arm64.exe dist/LumenVideo-Setup-arm64.exe
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" \
+            --title "Lumen Video Editor ${GITHUB_REF_NAME}" \
+            --notes "Lumen Video Editor ${GITHUB_REF_NAME} para Windows, por SifG22 (https://sifg.net). Descarga el instalador (LumenVideo-Setup) de tu PC: x64 (la mayoria, Intel o AMD) o arm64 (Snapdragon, Surface Pro X / 11). El ZIP es la version portable, sin instalar. Codigo abierto, licencia MIT."

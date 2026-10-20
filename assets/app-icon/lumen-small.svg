@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Lumen Video Editor">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a787ff"/>
+      <stop offset="1" stop-color="#7a4bef"/>
+    </linearGradient>
+    <mask id="arm-stripes" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#fff"/>
+      <polygon points="176,150 236,150 194,226 134,226"/>
+      <polygon points="296,150 356,150 314,226 254,226"/>
+    </mask>
+    <mask id="body-cuts" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#fff"/>
+      <polygon points="224,296 224,384 300,340" stroke="#000" stroke-width="16" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#tile)"/>
+  <g fill="#ffffff">
+    <g transform="rotate(-14 100 236)">
+      <rect x="100" y="150" width="312" height="76" rx="16" mask="url(#arm-stripes)"/>
+    </g>
+    <rect x="100" y="252" width="312" height="176" rx="30" mask="url(#body-cuts)"/>
+  </g>
+</svg>

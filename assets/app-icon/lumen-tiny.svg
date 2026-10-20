@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Lumen Video Editor">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a787ff"/>
+      <stop offset="1" stop-color="#7a4bef"/>
+    </linearGradient>
+    <mask id="body-cuts" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#fff"/>
+      <polygon points="216,288 216,392 304,340" stroke="#000" stroke-width="12" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#tile)"/>
+  <g fill="#ffffff">
+    <g transform="rotate(-14 84 232)">
+      <rect x="84" y="140" width="344" height="80" rx="18"/>
+    </g>
+    <rect x="84" y="244" width="344" height="196" rx="32" mask="url(#body-cuts)"/>
+  </g>
+</svg>
