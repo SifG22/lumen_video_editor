@@ -679,9 +679,11 @@ impl Default for MediaCachePrefs {
             location: String::new(),
             save_next_to_media: false,
             database_location: String::new(),
-            management: "never".into(),
+            // The cache never grew past its limit only when the user set one: by default it
+            // now keeps to 10 GB, oldest files first (Settings ▸ Media Cache changes it).
+            management: "exceedsSize".into(),
             older_than_days: 90,
-            max_size_gb: 92,
+            max_size_gb: 10,
         }
     }
 }

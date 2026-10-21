@@ -181,6 +181,12 @@ fn main() -> eframe::Result {
     };
     // However it ended, this start no longer counts as one that died.
     graphics.finish();
+    // This run's unsaved-project render previews: nothing opens them again, and left behind they
+    // would pile up on the disk with every launch.
+    let removed = lumen_engine::previews::remove_untitled_dirs();
+    if removed > 0 {
+        log::info!("removed {removed} unsaved preview folder(s)");
+    }
     // The window could not be created (no usable GPU / graphics driver, no display): say so
     // instead of exiting silently, and keep the reason in the crash log.
     if let Err(e) = &started {

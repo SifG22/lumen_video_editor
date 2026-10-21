@@ -579,10 +579,31 @@ fn default_temp_dir() -> Option<PathBuf> {
     Some(untitled_dir(&crate::temp_dir().join("Lumen Video Editor Previews")))
 }
 
+/// The unsaved-project preview folders this process has handed out ([`untitled_dir`]).
+pub(crate) static UNTITLED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+
 /// A fresh per-process folder for an unsaved project's previews under `root`.
-fn untitled_dir(root: &Path) -> PathBuf {
+pub(crate) fn untitled_dir(root: &Path) -> PathBuf {
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    root.join(format!("untitled-{}-{nanos:x}", std::process::id()))
+    let dir = root.join(format!("untitled-{}-{nanos:x}", std::process::id()));
+    let mut made = UNTITLED.lock().unwrap_or_else(|e| e.into_inner());
+    if made.len() < 4096 {
+        made.push(dir.clone());
+    }
+    dir
+}
+
+/// Delete every unsaved-project preview folder this process made; the app calls it as it quits.
+/// Nothing opens them again (a project saved later took its previews along, [`PreviewStore::move_to`]),
+/// and every launch makes new ones, so they would otherwise pile up and fill the disk.
+pub fn remove_untitled_dirs() -> usize {
+    let made = std::mem::take(&mut *UNTITLED.lock().unwrap_or_else(|e| e.into_inner()));
+    remove_dirs(&made)
+}
+
+/// Delete the folders among `dirs` (not files, not links); how many went.
+pub(crate) fn remove_dirs(dirs: &[PathBuf]) -> usize {
+    dirs.iter().filter(|d| d.symlink_metadata().is_ok_and(|m| m.is_dir()) && std::fs::remove_dir_all(d).is_ok()).count()
 }
 
 /// The preview folder of a project saved at `project_path`.

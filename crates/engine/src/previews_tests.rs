@@ -308,3 +308,21 @@ fn preview_files_are_streamed_not_read_whole() {
     }
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Every launch made an unsaved-project preview folder that nothing ever deleted, so render
+/// previews piled up on the disk: the folders this process made are listed for the app to remove
+/// as it quits, and only folders go (not files, not what a link points to).
+#[test]
+fn unsaved_preview_folders_are_removed() {
+    let root = std::env::temp_dir().join(format!("lumen-untitled-test-{}", std::process::id()));
+    let dir = crate::previews::untitled_dir(&root);
+    assert!(crate::previews::UNTITLED.lock().unwrap().contains(&dir));
+    std::fs::create_dir_all(dir.join("sub")).unwrap();
+    std::fs::write(dir.join("sub").join("a.mov"), b"x").unwrap();
+    let file = root.join("keep.txt");
+    std::fs::write(&file, b"keep").unwrap();
+    assert_eq!(crate::previews::remove_dirs(&[dir.clone(), file.clone(), root.join("missing")]), 1);
+    assert!(!dir.exists());
+    assert!(file.exists());
+    let _ = std::fs::remove_dir_all(&root);
+}
