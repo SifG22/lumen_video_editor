@@ -102,14 +102,20 @@ fn system_fonts() -> &'static [(String, Arc<FontData>)] {
 /// does not matter, and Latin text keeps the interface fonts. Installed faces come last, after
 /// the craft-fonts faces: one may be a broad face (DejaVu Sans, Segoe UI) that should not take
 /// symbols the craft-fonts faces draw.
-pub(crate) fn install(fonts: &mut FontDefinitions) {
+/// Find the installed faces now (slow: scans the system font folders), so [`install`] doesn't wait.
+pub(crate) fn warm() {
+    system_fonts();
+}
+
+/// The installed faces only when `system` (see [`crate::theme::install_with`]).
+pub(crate) fn install(fonts: &mut FontDefinitions, system: bool) {
     let mut names = Vec::new();
     for f in craft_fonts() {
         let name = format!("craft:{} {}", f.family, f.style);
         fonts.font_data.insert(name.clone(), Arc::new(FontData::from_static(f.bytes)));
         names.push(name);
     }
-    for (name, font) in system_fonts() {
+    for (name, font) in if system { system_fonts() } else { &[] } {
         fonts.font_data.insert(name.clone(), font.clone());
         names.push(name.clone());
     }
@@ -369,7 +375,7 @@ mod tests {
     fn lines_draw_arabic_in_reading_order() {
         let ctx = egui::Context::default();
         let mut fonts = FontDefinitions::default();
-        install(&mut fonts);
+        install(&mut fonts, true);
         if !craft_fonts().any(|f| f.scripts.contains(&"Arab")) && !system_fonts().iter().any(|(name, _)| name == "system-arab") {
             eprintln!("SKIPPED: no craft-fonts or installed Arabic font");
             return;

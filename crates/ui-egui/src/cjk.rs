@@ -68,9 +68,10 @@ pub(crate) fn available() -> bool {
 /// Append Chinese faces after the Latin UI fonts and the Japanese fallbacks. This keeps the
 /// interface's Latin typography and Japanese glyph forms, and covers the simplified and
 /// traditional hanzi in media and track names that Japanese fonts lack.
-pub(crate) fn install(fonts: &mut FontDefinitions) {
-    install_chinese(fonts);
-    if let Some(font) = korean_font() {
+/// The installed system faces only when `system` (see [`crate::theme::install_with`]).
+pub(crate) fn install(fonts: &mut FontDefinitions, system: bool) {
+    install_chinese(fonts, system);
+    if let Some(font) = korean_font().filter(|_| system) {
         fonts.font_data.insert("system-korean".into(), font);
         for stack in fonts.families.values_mut() {
             stack.push("system-korean".into());
@@ -78,10 +79,10 @@ pub(crate) fn install(fonts: &mut FontDefinitions) {
     }
 }
 
-fn install_chinese(fonts: &mut FontDefinitions) {
+fn install_chinese(fonts: &mut FontDefinitions, system: bool) {
     let chinese: Vec<_> = craft_fonts().collect();
     if chinese.is_empty() {
-        if let Some(font) = system_font() {
+        if let Some(font) = system_font().filter(|_| system) {
             fonts.font_data.insert("system-chinese".into(), font);
             for stack in fonts.families.values_mut() {
                 stack.push("system-chinese".into());

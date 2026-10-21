@@ -424,6 +424,20 @@ pub fn font_families() -> Vec<FontFamily> {
 /// craft-fonts, Arabic and Hebrew fallbacks (craft-fonts or installed faces, [`crate::rtl`]) and
 /// egui visuals. Document names keep their glyphs in every interface language.
 pub fn install(ctx: &egui::Context, t: &Tokens) {
+    install_with(ctx, t, true);
+}
+
+/// [`install`], with the installed system fallback faces only when `system`: finding them scans
+/// every font in the system font folders, which takes seconds on Windows. The first frame installs
+/// without them while [`scan_system_fonts`] looks in the background, then [`font_definitions`]
+/// adds them.
+pub fn install_with(ctx: &egui::Context, t: &Tokens, system: bool) {
+    ctx.set_fonts(font_definitions(system));
+    apply_visuals(ctx, t);
+}
+
+/// The interface fonts; the installed system fallback faces only when `system`.
+pub fn font_definitions(system: bool) -> FontDefinitions {
     let mut fonts = FontDefinitions::default();
     fonts.font_data.insert("inter".into(), Arc::new(FontData::from_static(lumen_text::fonts::INTER_REGULAR)));
     fonts.font_data.insert("inter-medium".into(), Arc::new(FontData::from_static(lumen_text::fonts::INTER_MEDIUM)));
@@ -436,10 +450,42 @@ pub fn install(ctx: &egui::Context, t: &Tokens) {
     // Japanese before Chinese: the two share code points, and Japanese text must keep Japanese
     // glyph forms; Chinese faces still cover the hanzi Japanese fonts lack
     add_craft_fonts(&mut fonts);
-    crate::cjk::install(&mut fonts);
-    crate::rtl::install(&mut fonts);
-    ctx.set_fonts(fonts);
-    apply_visuals(ctx, t);
+    crate::cjk::install(&mut fonts, system);
+    crate::rtl::install(&mut fonts, system);
+    fonts
+}
+
+/// Set once [`scan_system_fonts`] has found the installed fallback faces.
+static SYSTEM_FONTS_READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether the installed fallback faces are found, so installing them no longer blocks.
+pub fn system_fonts_ready() -> bool {
+    SYSTEM_FONTS_READY.load(std::sync::atomic::Ordering::Acquire)
+}
+
+/// Find the installed fallback faces on a background thread and repaint `ctx` when done.
+pub fn scan_system_fonts(ctx: &egui::Context) {
+    let scan = || {
+        let _ = std::panic::catch_unwind(|| {
+            crate::cjk::available();
+            crate::cjk::korean_available();
+            crate::rtl::warm();
+        });
+        SYSTEM_FONTS_READY.store(true, std::sync::atomic::Ordering::Release);
+    };
+    if cfg!(target_arch = "wasm32") {
+        scan();
+        return;
+    }
+    let ctx = ctx.clone();
+    let spawned = std::thread::Builder::new().name("system-fonts".into()).spawn(move || {
+        scan();
+        ctx.request_repaint();
+    });
+    if spawned.is_err() {
+        // no thread: the next install finds them itself
+        SYSTEM_FONTS_READY.store(true, std::sync::atomic::Ordering::Release);
+    }
 }
 
 /// Name of the egui font for a craft-fonts entry.

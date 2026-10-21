@@ -9,7 +9,7 @@ pub const PRODUCT_NAME: &str = "Lumen Video Editor";
 pub const AUTHOR: &str = "SifG22";
 
 /// The app's version (About, the `.exe` details, the installers and the update check).
-pub const VERSION: &str = "0.0.1";
+pub const VERSION: &str = "0.0.2";
 
 /// SifG22's website (Help menu, About, Home).
 pub const WEBSITE: &str = "https://sifg.net";

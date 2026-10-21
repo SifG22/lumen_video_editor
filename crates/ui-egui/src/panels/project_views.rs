@@ -927,8 +927,13 @@ fn bin_card(app: &mut LumenApp, ui: &mut egui::Ui, r: Rect, b: &Bin, v: &View, a
     let f = font(app);
     let nr = Rect::from_min_max(pos2(th.min.x, th.max.y + 2.0), pos2(th.max.x, th.max.y + 20.0));
     if !rename_field(app, ui, nr, None, Some(b.id.0), &v.prefix) {
-        ui.painter().with_clip_rect(nr).text(pos2(th.min.x, th.max.y + 11.0), Align2::LEFT_CENTER, &b.name, Tokens::ui(f - 0.5), t.text);
-        ui.painter().text(pos2(th.max.x, th.max.y + 11.0), Align2::RIGHT_CENTER, tlf!("{n} items", n = n.len()), Tokens::ui(f - 1.5), t.text_dim);
+        // the count on the right, the name clipped to the room left of it (a long name ran into it)
+        let count = ui.painter().text(pos2(th.max.x, th.max.y + 11.0), Align2::RIGHT_CENTER, tlf!("{n} items", n = n.len()), Tokens::ui(f - 1.5), t.text_dim);
+        let mut job = egui::text::LayoutJob::single_section(b.name.clone(), egui::TextFormat::simple(Tokens::ui(f - 0.5), t.text));
+        job.wrap = egui::text::TextWrapping::truncate_at_width((count.min.x - 4.0 - nr.min.x).max(0.0));
+        let name = ui.painter().layout_job(job);
+        let y = th.max.y + 11.0 - name.size().y / 2.0;
+        ui.painter().with_clip_rect(nr).galley(pos2(th.min.x, y), name, t.text);
     }
     app.auto.add(&format!("{}.bin.{}", v.prefix, b.id.0), th, &b.name);
     accept_bin_drop(app, ui, th, b.id.0, actions);

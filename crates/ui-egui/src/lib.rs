@@ -349,6 +349,8 @@ pub struct LumenApp {
     /// quit prompt, or the control channel's `app.quit`).
     pub quit_confirmed: bool,
     fonts_ready: bool,
+    /// The installed system fallback faces are in the fonts (see `theme::install_with`).
+    system_fonts_installed: bool,
     pub integrated_titlebar: bool,
     pub last_timeline_width: f32,
     /// The sequence whose view `ui.timeline` holds, and that view as it was last exchanged with
@@ -380,6 +382,9 @@ pub struct LumenApp {
     pub(crate) stale_clipboard_media: Option<String>,
     /// GPU compositor (when running on wgpu): device state + compositor + the egui texture it feeds.
     pub gpu: Option<GpuState>,
+    /// The GPU compositor being built on a background thread (its shaders compile for a moment);
+    /// until it arrives the monitors composite on the CPU.
+    gpu_pending: Option<PendingGpu>,
     /// Preview render job being watched (job id, where to start playing when it completes).
     watched_render: Option<(u64, Tick)>,
     /// Settings last applied to the UI (theme, tooltips, frame cache, audio device).
@@ -406,6 +411,14 @@ pub struct GpuState {
     pub broken: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Largest texture side the device accepts.
     pub max_texture: u32,
+}
+
+/// A GPU compositor on its way from [`LumenApp::set_wgpu`]'s background thread.
+struct PendingGpu {
+    render_state: eframe::egui_wgpu::RenderState,
+    broken: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// `None` when building it panicked.
+    rx: Receiver<Option<lumen_gpu::GpuCompositor>>,
 }
 
 /// Largest texture side a plan needs on the GPU (output and every layer).
@@ -471,9 +484,51 @@ impl LumenApp {
             log::error!("GPU error, switching to the CPU compositor: {e}");
             flag.store(true, std::sync::atomic::Ordering::Relaxed);
         }));
+        // Compiling the compositor's shaders takes a moment (over half a second on some GPUs):
+        // build it on a background thread so the window opens without waiting (see `poll_gpu`).
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let (device, queue) = (rs.device.clone(), rs.queue.clone());
+            let spawned = std::thread::Builder::new().name("gpu-compositor".into()).spawn(move || {
+                let made = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| lumen_gpu::GpuCompositor::new(&device, &queue)));
+                let _ = tx.send(made.ok());
+            });
+            if spawned.is_ok() {
+                self.gpu_pending = Some(PendingGpu { render_state: rs, broken, rx });
+                return;
+            }
+        }
         let made = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| lumen_gpu::GpuCompositor::new(&rs.device, &rs.queue)));
+        self.install_gpu(rs, made.ok(), broken);
+    }
+
+    /// Take the GPU compositor once its background thread has built it.
+    fn poll_gpu(&mut self, ctx: &egui::Context) {
+        let Some(pending) = &self.gpu_pending else { return };
+        match pending.rx.try_recv() {
+            Err(std::sync::mpsc::TryRecvError::Empty) => ctx.request_repaint_after(std::time::Duration::from_millis(50)),
+            Ok(made) => {
+                if let Some(p) = self.gpu_pending.take() {
+                    self.install_gpu(p.render_state, made, p.broken);
+                    ctx.request_repaint();
+                }
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.gpu_pending = None;
+                log::error!("GPU compositor failed to initialise; compositing on the CPU");
+            }
+        }
+    }
+
+    fn install_gpu(
+        &mut self,
+        rs: eframe::egui_wgpu::RenderState,
+        made: Option<lumen_gpu::GpuCompositor>,
+        broken: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) {
         match made {
-            Ok(compositor) if !broken.load(std::sync::atomic::Ordering::Relaxed) => {
+            Some(compositor) if !broken.load(std::sync::atomic::Ordering::Relaxed) => {
                 let max_texture = rs.device.limits().max_texture_dimension_2d;
                 self.gpu = Some(GpuState { render_state: rs, compositor, texture: None, last_key: None, size: (0, 0), last_ms: 0.0, broken, max_texture });
             }
@@ -584,6 +639,7 @@ impl LumenApp {
             panic_next_frame: false,
             quit_confirmed: false,
             fonts_ready: false,
+            system_fonts_installed: false,
             integrated_titlebar: false,
             last_timeline_width: 1000.0,
             timeline_view_of: None,
@@ -604,6 +660,7 @@ impl LumenApp {
             v_down: false,
             stale_clipboard_media: None,
             gpu: None,
+            gpu_pending: None,
             watched_render: None,
             applied_prefs: None,
             applied_ui_scale: None,
@@ -2110,8 +2167,18 @@ impl eframe::App for LumenApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // a native file dialog's answer first, so the panels draw what it chose (#260)
         self.poll_native_dialog(ctx);
+        self.poll_gpu(ctx);
         if !self.styled {
-            theme::install(ctx, &self.tokens);
+            // The installed fallback faces (Chinese, Korean, Arabic, Hebrew…) are found in the
+            // background, so scanning the system fonts doesn't hold up the window; an interface
+            // language that needs them waits for them.
+            let started = std::time::Instant::now();
+            let needs_system = matches!(self.ui.language, i18n::Language::Ja | i18n::Language::ZhCn | i18n::Language::Ko);
+            self.system_fonts_installed = needs_system || theme::system_fonts_ready();
+            theme::install_with(ctx, &self.tokens, self.system_fonts_installed);
+            if !self.system_fonts_installed {
+                theme::scan_system_fonts(ctx);
+            }
             // theme::install replaces the fonts: add the system Japanese font back (or fall back to
             // English when a saved Japanese setting meets a system without one)
             // (likewise Chinese without a Chinese face, Korean without a Hangul one)
@@ -2123,9 +2190,14 @@ impl eframe::App for LumenApp {
                 self.ui.language = i18n::Language::En;
             }
             self.styled = true;
+            log::info!("interface fonts installed in {} ms", started.elapsed().as_millis());
             ctx.request_repaint();
         } else {
             self.fonts_ready = true;
+            if !self.system_fonts_installed && theme::system_fonts_ready() {
+                ctx.set_fonts(theme::font_definitions(true));
+                self.system_fonts_installed = true;
+            }
         }
         let now = ctx.input(|i| i.time);
         let dt = (now - self.last_time) as f32;

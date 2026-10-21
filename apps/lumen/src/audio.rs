@@ -128,8 +128,23 @@ fn output_device(h: &cpal::Host, name: &str, cache: &Mutex<Option<(String, Strin
     Some(DeviceChoice { device: d, fallback: Some(Note::Fallback(found)) })
 }
 
+/// What [`CpalOut::probe`] found out about the default output device; plain data, so the probe can
+/// run on another thread while the window opens (asking the system takes a few hundred ms).
+pub struct Probe {
+    rate: u32,
+    channels: u16,
+    note: Option<Note>,
+    fallback: Option<(String, String)>,
+}
+
 impl CpalOut {
+    #[cfg(test)]
     pub fn new() -> Self {
+        Self::from_probe(Self::probe())
+    }
+
+    /// Find the default output device and its format.
+    pub fn probe() -> Probe {
         let host = cpal::default_host();
         let fallback = Mutex::new(None);
         let choice = output_device(&host, "", &fallback);
@@ -141,6 +156,17 @@ impl CpalOut {
                 Some(Note::NoDevice)
             }
         };
+        Probe {
+            rate: cfg.as_ref().map_or(48_000, |c| c.sample_rate().0),
+            channels: cfg.as_ref().map_or(2, |c| c.channels()),
+            note,
+            fallback: fallback.into_inner().unwrap_or_else(PoisonError::into_inner),
+        }
+    }
+
+    pub fn from_probe(probe: Probe) -> Self {
+        let Probe { rate, channels, note, fallback } = probe;
+        let fallback = Mutex::new(fallback);
         Self {
             stream: None,
             fill: None,
@@ -148,8 +174,8 @@ impl CpalOut {
             health: Arc::new(Health::default()),
             watchdog: Watchdog::default(),
             epoch: Instant::now(),
-            rate: cfg.as_ref().map_or(48_000, |c| c.sample_rate().0),
-            channels: cfg.as_ref().map_or(2, |c| c.channels()),
+            rate,
+            channels,
             hw: AudioHardwarePrefs::default(),
             document_rate: None,
             note,

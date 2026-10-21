@@ -36,6 +36,7 @@ mod logging;
 #[cfg(target_os = "macos")]
 mod native_menu;
 mod updater;
+mod window;
 mod window_raise;
 
 use args::{Cli, Launch};
@@ -77,7 +78,16 @@ fn tell(text: &str, error: bool) {
     }
 }
 
+/// When the process started, for the start-up timings in the log.
+static STARTED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+/// Milliseconds since the process started.
+fn since_start() -> u128 {
+    STARTED.get().map_or(0, |t| t.elapsed().as_millis())
+}
+
 fn main() -> eframe::Result {
+    let _ = STARTED.set(std::time::Instant::now());
     // First, so the panic hook and every start-up record are logged (`logging`).
     let logger = logging::install();
     // lossy, so a value that is not Unicode is reported like any other bad port instead of ignored
@@ -131,6 +141,10 @@ fn main() -> eframe::Result {
     // Lumen Video Editor: look for a newer version in the background (Windows release builds;
     // never when driven by an agent).
     updater::spawn(data_root.clone(), launch.control_port.is_some());
+    // The audio output device is probed while the window opens (a few hundred ms on Windows).
+    let audio_probe: AudioProbe = Arc::new(std::sync::Mutex::new(
+        std::thread::Builder::new().name("audio-probe".into()).spawn(|| std::panic::catch_unwind(audio::CpalOut::probe).ok()).ok(),
+    ));
     // Which graphics backends and adapter the window starts with: `--graphics`, else the saved
     // mode, which moves on after starts that died before their window painted (a driver crash),
     // see graphics.rs.
@@ -146,7 +160,11 @@ fn main() -> eframe::Result {
         // Before eframe creates the wgpu instance (e.g. no OpenGL on Windows, see graphics.rs).
         graphics::apply(&mut options, graphics.mode(), backend_override);
         let app_created = Arc::new(AtomicBool::new(false));
-        let result = eframe::run_native("Lumen Video Editor", options, app_creator(launch.clone(), graphics.clone(), Arc::clone(&app_created)));
+        let result = eframe::run_native(
+            "Lumen Video Editor",
+            options,
+            app_creator(launch.clone(), graphics.clone(), Arc::clone(&app_created), Arc::clone(&audio_probe)),
+        );
         let app_created = app_created.load(Ordering::Relaxed);
         match &result {
             // wgpu reported the failure (no adapter, device creation failed) before the app
@@ -179,8 +197,8 @@ fn native_options(agent: bool) -> eframe::NativeOptions {
     eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title(lumen_ui_egui::brand::PRODUCT_NAME)
-            .with_inner_size([1600.0, 980.0])
-            .with_min_inner_size([900.0, 560.0])
+            .with_inner_size(window::DEFAULT_SIZE)
+            .with_min_inner_size(window::MIN_SIZE)
             .with_drag_and_drop(true)
             .with_fullsize_content_view(true)
             .with_titlebar_shown(false)
@@ -197,10 +215,14 @@ fn native_options(agent: bool) -> eframe::NativeOptions {
 
 /// Creates the app once eframe has its window and graphics device; sets `created` when it runs,
 /// and confirms the graphics mode once two frames have painted.
-fn app_creator(launch: Launch, graphics: graphics::GraphicsStart, created: Arc<AtomicBool>) -> eframe::AppCreator<'static> {
+/// The audio device probe started with the process, taken by the first app created.
+type AudioProbe = Arc<std::sync::Mutex<Option<std::thread::JoinHandle<Option<audio::Probe>>>>>;
+
+fn app_creator(launch: Launch, graphics: graphics::GraphicsStart, created: Arc<AtomicBool>, audio_probe: AudioProbe) -> eframe::AppCreator<'static> {
     let Launch { control_port, control_input_only, files, demo, startup_flag, recover, data_dir, graphics: _ } = launch;
     Box::new(move |cc| {
         created.store(true, Ordering::Relaxed);
+        log::info!("window and graphics device ready after {} ms", since_start());
         // A fallback graphics mode says so in the window, with a button back to the default.
         let notice = graphics.degraded().then(|| {
             let start = graphics.clone();
@@ -211,7 +233,24 @@ fn app_creator(launch: Launch, graphics: graphics::GraphicsStart, created: Arc<A
             "graphics-start",
             Arc::new(move |ui| {
                 if ui.ctx().cumulative_frame_nr() >= 2 && !confirmed.swap(true, Ordering::Relaxed) {
+                    log::info!("first frames drawn after {} ms", since_start());
                     graphics.confirm();
+                }
+            }),
+        );
+        // Put the window back as it was last closed (maximized, size, place), still hidden, and
+        // keep following it; agent-driven runs leave the user's saved window alone.
+        let window_dir = data_dir.clone().or_else(default_data_dir);
+        let saved_window = window_dir.as_deref().and_then(window::load);
+        let opened = cc.winit_window().map(|w| window::restore(w, saved_window));
+        let tracker = std::sync::Mutex::new(window::Tracker::new(opened, saved_window, control_port.is_none()));
+        cc.egui_ctx.on_end_pass(
+            "window-geometry",
+            Arc::new(move |ui| {
+                let mut tracker = tracker.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                tracker.frame(ui.ctx(), window_dir.as_deref());
+                if ui.ctx().input(|i| i.viewport().close_requested()) {
+                    tracker.save(window_dir.as_deref());
                 }
             }),
         );
@@ -275,7 +314,8 @@ fn app_creator(launch: Launch, graphics: graphics::GraphicsStart, created: Arc<A
         }
         // Keep device selection available even when the default device is unavailable.
         // Settings ▸ Audio Hardware is applied on the first frame (`apply_prefs`).
-        app.audio = Some(Box::new(audio::CpalOut::new()));
+        let probe = audio_probe.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take().and_then(|h| h.join().ok().flatten());
+        app.audio = Some(Box::new(audio::CpalOut::from_probe(probe.unwrap_or_else(audio::CpalOut::probe))));
         app.hooks.pick_files = Some(Box::new(|exts: &[&str]| {
             rfd::FileDialog::new()
                 .add_filter(lumen_ui_egui::i18n::t("Media"), &file_filters::extensions(exts))
@@ -358,6 +398,7 @@ fn app_creator(launch: Launch, graphics: graphics::GraphicsStart, created: Arc<A
             let rx = control_server::start(port, cc.egui_ctx.clone());
             app = if control_input_only { app.with_control_input_only(rx) } else { app.with_control(rx) };
         }
+        log::info!("app created after {} ms", since_start());
         Ok(Box::new(app))
     })
 }
@@ -386,6 +427,12 @@ fn open_path(path: &str, reveal: bool) -> Result<(), String> {
         c
     } else if cfg!(target_os = "windows") {
         let mut c = std::process::Command::new("explorer");
+        // never a console window from this windowed app
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        }
         if reveal {
             c.arg(format!("/select,{path}"));
         } else {

@@ -188,6 +188,21 @@ fn sanitize(v: &str) -> String {
     v.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '.' || *c == '-').take(32).collect()
 }
 
+/// A console tool (`curl.exe`, `certutil.exe`) run without a console window: this app has no
+/// console of its own (`windows_subsystem = "windows"`), so Windows would otherwise open a terminal
+/// window for every call.
+fn hidden(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    let mut cmd = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        /// `CREATE_NO_WINDOW` from the Win32 process creation flags.
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
 fn system32(exe: &str) -> PathBuf {
     let root = std::env::var_os("SystemRoot").map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
     root.join("System32").join(exe)
@@ -196,7 +211,7 @@ fn system32(exe: &str) -> PathBuf {
 /// Run Windows' curl (`-fsSL`, so HTTP errors fail) and return what it printed.
 fn curl(args: &[&str]) -> Result<Vec<u8>, String> {
     let agent = format!("LumenVideoEditor/{VERSION}");
-    let out = Command::new(system32("curl.exe")).args(["-fsSL", "-A", agent.as_str()]).args(args).output().map_err(|e| format!("curl: {e}"))?;
+    let out = hidden(system32("curl.exe")).args(["-fsSL", "-A", agent.as_str()]).args(args).output().map_err(|e| format!("curl: {e}"))?;
     if !out.status.success() {
         return Err(format!("curl failed ({}): {}", out.status, String::from_utf8_lossy(&out.stderr).trim()));
     }
@@ -205,7 +220,7 @@ fn curl(args: &[&str]) -> Result<Vec<u8>, String> {
 
 /// SHA-256 of `file` (lower-case hex) through `certutil -hashfile`.
 fn sha256(file: &Path) -> Result<String, String> {
-    let out = Command::new(system32("certutil.exe")).arg("-hashfile").arg(file).arg("SHA256").output().map_err(|e| format!("certutil: {e}"))?;
+    let out = hidden(system32("certutil.exe")).arg("-hashfile").arg(file).arg("SHA256").output().map_err(|e| format!("certutil: {e}"))?;
     if !out.status.success() {
         return Err(format!("certutil failed ({})", out.status));
     }
