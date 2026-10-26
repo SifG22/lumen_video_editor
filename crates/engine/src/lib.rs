@@ -25,6 +25,7 @@ pub mod graphics;
 pub mod interchange;
 pub mod keyboard;
 mod keyframe_move;
+pub mod lumen_studio;
 pub mod lumen_tools;
 mod marker_export;
 pub mod masks;
@@ -45,6 +46,7 @@ pub mod project_tools;
 pub mod proxies;
 pub mod relink;
 pub mod remix;
+pub mod render_replace;
 pub mod scene_detect;
 pub mod scopes;
 pub mod sequence_extras;
@@ -1248,6 +1250,8 @@ mod linked_speed_tests;
 #[cfg(test)]
 mod locked_clip_edits_tests;
 #[cfg(test)]
+mod lumen_studio_tests;
+#[cfg(test)]
 mod lumen_tools_tests;
 #[cfg(test)]
 mod masks_tests;
@@ -1291,6 +1295,8 @@ mod proxies_tests;
 mod relink_tests;
 #[cfg(test)]
 mod remix_tests;
+#[cfg(test)]
+mod render_replace_tests;
 #[cfg(test)]
 mod ripple_delete_tests;
 #[cfg(test)]

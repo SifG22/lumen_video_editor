@@ -278,6 +278,7 @@ const LABEL_IDS: [&str; 16] = [
 /// (moving a few existing commands into their submenus' order too).
 pub(crate) fn apply_layout(v: &mut Vec<CommandSpec>) {
     let mut pool = commands();
+    pool.extend(crate::render_replace::commands());
     let mut edit_tail: Vec<&'static str> = vec!["edit.selectLabelGroup"];
     edit_tail.extend(LABEL_IDS);
     edit_tail.extend(["edit.removeUnused", "edit.consolidateDuplicates"]);
@@ -313,6 +314,7 @@ pub(crate) fn apply_layout(v: &mut Vec<CommandSpec>) {
             ],
         ),
         (At::After("source.overwrite"), vec!["clip.replaceFromSource", "clip.replaceFromSourceMatchFrame", "clip.replaceFromBin"]),
+        (At::After("clip.replaceFromBin"), vec!["clip.renderAndReplace", "clip.restoreUnrendered"]),
     ];
     for (at, ids) in layout {
         let mut run = Vec::new();

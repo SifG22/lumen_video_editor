@@ -44,7 +44,7 @@ fn to_avcc(data: &[u8]) -> (Vec<u8>, Vec<Vec<u8>>) {
 
 #[test]
 fn avcc_input_matches_reference() {
-    for name in ["main_cabac_b", "baseline_qcif"] {
+    for name in ["main_cabac_b", "baseline_qcif", "high422_10_cabac"] {
         let f = common::fixture(name);
         let Some((h264, yuv)) = common::ensure(f) else { return };
         let (avcc, samples) = to_avcc(&std::fs::read(h264).unwrap());
@@ -77,7 +77,7 @@ fn xorshift(seed: &mut u64) -> u64 {
 /// Damaged streams must never panic or hang; errors are fine.
 #[test]
 fn corrupted_streams_do_not_panic() {
-    for name in ["main_cabac_b", "baseline_cif_noise", "cavlc_b", "bpyramid"] {
+    for name in ["main_cabac_b", "baseline_cif_noise", "cavlc_b", "bpyramid", "high10_cabac_b", "high422_10_cabac", "high422_10_cavlc"] {
         let f = common::fixture(name);
         let Some((h264, _)) = common::ensure(f) else { return };
         let data = std::fs::read(h264).unwrap();
@@ -101,6 +101,36 @@ fn corrupted_streams_do_not_panic() {
                 let _ = dec.take_error();
             }
         }
+    }
+}
+
+/// A stream whose sample format changes (8-bit 4:2:0, then 10-bit 4:2:2, then back) decodes each
+/// part in its own format, bit-exact, without mixing reference pictures across the change.
+#[test]
+fn sample_format_changes_mid_stream() {
+    let names = ["main_cabac_b", "high422_10_cabac", "main_cabac_b"];
+    let mut parts = Vec::new();
+    for name in names {
+        let f = common::fixture(name);
+        let Some((h264, yuv)) = common::ensure(f) else { return };
+        parts.push((f, std::fs::read(h264).unwrap(), std::fs::read(yuv).unwrap()));
+    }
+    for threads in [1, 3] {
+        let mut dec = Decoder::with_threads(threads);
+        let mut pics = Vec::new();
+        for (_, data, _) in &parts {
+            for au in common::split_access_units(data) {
+                pics.extend(dec.decode(au, 0).unwrap());
+            }
+        }
+        pics.extend(dec.flush());
+        let mut at = 0;
+        for (f, _, reference) in &parts {
+            let n = pics[at..].iter().take_while(|p| (p.bit_depth > 8) == (common::ref_pix_fmt(f) != "yuv420p")).count().min(f.frames as usize);
+            common::compare(&pics[at..at + n], reference, f.width as usize, f.height as usize).unwrap_or_else(|e| panic!("{}: {e}", f.name));
+            at += n;
+        }
+        assert_eq!(at, pics.len());
     }
 }
 

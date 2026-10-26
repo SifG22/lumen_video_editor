@@ -302,29 +302,54 @@ impl H264Decoder {
         Self { avcc: Vec::new(), dec: lumen_h264::Decoder::with_threads(threads), length_size: 0, draft: false, threads }
     }
     fn convert(p: lumen_h264::Picture) -> DecodedFrame {
+        use lumen_h264::Plane;
         use std::sync::Arc;
         let draft = p.draft;
         let (w, h) = (p.width as usize, p.height as usize);
         let (cw, ch) = (p.chroma_width as usize, p.chroma_height as usize);
-        let y = tight_plane(p.y, p.y_stride, w, h);
-        let u = tight_plane(p.u, p.uv_stride, cw, ch);
-        let v = tight_plane(p.v, p.uv_stride, cw, ch);
+        let (ys, uvs) = (p.y_stride, p.uv_stride);
+        let chroma = match p.chroma {
+            lumen_h264::ChromaFormat::C420 => lumen_frame::Chroma::C420,
+            lumen_h264::ChromaFormat::C422 => lumen_frame::Chroma::C422,
+        };
+        // one bit depth for all planes: a narrower plane (luma and chroma depths may differ) is
+        // scaled up to the deeper one
+        let bits = p.bit_depth.max(p.bit_depth_chroma);
+        let wide = |pl: Plane, bd: u32| -> Vec<u16> {
+            let sh = bits.saturating_sub(bd);
+            match pl {
+                Plane::U16(v) if sh == 0 => v,
+                Plane::U16(v) => v.into_iter().map(|s| s << sh).collect(),
+                Plane::U8(v) => v.into_iter().map(|s| u16::from(s) << sh).collect(),
+            }
+        };
+        let data = match (p.y, p.u, p.v) {
+            (Plane::U8(y), Plane::U8(u), Plane::U8(v)) => lumen_frame::PixelData::Yuv8 {
+                planes: [Arc::new(tight_plane(y, ys, w, h)), Arc::new(tight_plane(u, uvs, cw, ch)), Arc::new(tight_plane(v, uvs, cw, ch))],
+                chroma,
+                alpha: None,
+            },
+            // 10-bit (High 10, High 4:2:2) camera media: 16-bit planes
+            (y, u, v) => lumen_frame::PixelData::Yuv16 {
+                planes: [
+                    Arc::new(tight_plane(wide(y, p.bit_depth), ys, w, h)),
+                    Arc::new(tight_plane(wide(u, p.bit_depth_chroma), uvs, cw, ch)),
+                    Arc::new(tight_plane(wide(v, p.bit_depth_chroma), uvs, cw, ch)),
+                ],
+                chroma,
+                bits,
+                alpha: None,
+            },
+        };
         let color = vui_color(p.width, p.height, p.color.primaries, p.color.matrix, p.color.transfer, p.color.full_range);
         let par = sar_par(p.sar);
-        let frame = VideoFrame {
-            width: p.width,
-            height: p.height,
-            data: lumen_frame::PixelData::Yuv8 { planes: [Arc::new(y), Arc::new(u), Arc::new(v)], chroma: lumen_frame::Chroma::C420, alpha: None },
-            color,
-            par,
-            pts: lumen_time::Tick::ZERO,
-        };
+        let frame = VideoFrame { width: p.width, height: p.height, data, color, par, pts: lumen_time::Tick::ZERO };
         DecodedFrame { pts: p.pts, frame, draft }
     }
 }
 
 /// An H.264 decoder error as a [`CodecError`]: a feature the decoder does not implement (High
-/// 4:2:2, field pictures...) is [`CodecError::Unsupported`], so the media pool shows the
+/// 4:4:4, field pictures...) is [`CodecError::Unsupported`], so the media pool shows the
 /// unreadable slate instead of a black picture (#626); anything else is a decode error.
 fn h264_error(e: lumen_h264::Error) -> CodecError {
     match e {

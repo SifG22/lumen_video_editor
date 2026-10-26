@@ -54,6 +54,16 @@ fixture_tests!(
     vt_main,
     vt_baseline,
     vt_high_1080p,
+    high10_cabac_b,
+    high10_cavlc,
+    high10_lowqp,
+    high10_crop_fade,
+    high422_cabac,
+    high422_10_cabac,
+    high422_10_cavlc,
+    high422_10_intra,
+    high422_10_8x8_crop,
+    high422_10_qp_extremes,
 );
 
 /// Draft mode (reduced-resolution playback) skips deblocking of non-reference pictures only:
@@ -78,7 +88,7 @@ fn draft_mode_changes_only_flagged_non_reference_pictures() {
             let (mut draft, mut changed) = (0, 0);
             for (i, p) in pics.iter().enumerate() {
                 let r = &reference[i * fsize..(i + 1) * fsize];
-                let same = p.y == r[..w * h] && [&p.u[..], &p.v[..]].concat() == r[w * h..];
+                let same = p.y.to_le_bytes() == r[..w * h] && [p.u.to_le_bytes(), p.v.to_le_bytes()].concat() == r[w * h..];
                 if p.draft {
                     draft += 1;
                     changed += !same as usize;

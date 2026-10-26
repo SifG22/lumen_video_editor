@@ -19,7 +19,14 @@ oracles and fixture generators.
 - Slice header: all fields incl. reference list modification, prediction weight table and
   decoded reference picture marking. POC types 0, 1, 2. `frame_num` gap handling ("non-existing"
   frames).
-- Entropy coding: CAVLC and CABAC (all syntax elements needed for frame coding, 4:2:0).
+- Entropy coding: CAVLC and CABAC (all syntax elements needed for frame coding, 4:2:0 and 4:2:2).
+- Sample formats: 4:2:0 and 4:2:2 chroma, 8 to 10 bits (High 10, High 4:2:2 and their Intra
+  profiles: the camera formats of XAVC S-I / XAVC HS 4:2:2, AVC-Intra class, Panasonic, Canon).
+  The macroblock layer is generic over the sample storage (`u8` for 8-bit pictures, `u16`
+  above), so 8-bit streams keep their compact path and speed. High bit depths use QpBdOffset in
+  every QP derivation (negative QPs), Clip1 to the bit depth, scaled weighted-prediction offsets
+  and deblocking thresholds; 4:2:2 adds the 2x4 chroma DC transform (QP'C + 3), 8x16 chroma intra
+  prediction, quarter-sample vertical chroma motion and the four horizontal chroma edges.
 - Macroblocks: I (Intra 4x4 / 8x8 / 16x16, I_PCM), P (all partitions, P_8x8ref0, P_Skip),
   B (all partitions and sub-partitions, B_Skip, B_Direct_16x16, B_Direct_8x8), spatial and temporal
   direct prediction with/without `direct_8x8_inference`, constrained intra prediction.
@@ -31,7 +38,7 @@ oracles and fixture generators.
   the level (or VUI `max_dec_frame_buffering`) and `max_num_reorder_frames`.
 - Deblocking filter: full bS derivation, `disable_deblocking_filter_idc` 0/1/2, slice offsets,
   8x8-transform edges.
-- Output: cropped 8-bit planar 4:2:0 pictures in output order with the caller's `pts`, POC, key
+- Output: cropped planar 4:2:0 / 4:2:2 pictures (`Plane::U8`, or `Plane::U16` above 8 bits) in output order with the caller's `pts`, POC, key
   flag, VUI colour description (range, primaries, transfer, matrix) and sample aspect ratio.
 - Frame-level multithreading (see below).
 - Draft mode for reduced-resolution playback (off by default): non-reference pictures skip the
@@ -163,6 +170,16 @@ encoder is unavailable.
 | vt_main | mandelbrot+noise 640x360 | VideoToolbox, Main |
 | vt_high | testsrc2+noise 640x360 | VideoToolbox, High |
 | vt_high_1080p | testsrc2 1920x1080 | VideoToolbox, High 8 Mbit/s |
+| high10_cabac_b | testsrc2+noise 352x288 | High 10, B-pyramid, weightp |
+| high10_cavlc | mandelbrot+noise 352x288 | High 10, CAVLC, B-frames |
+| high10_lowqp | testsrc2+noise 176x144 | High 10, QP 1 (QPY -11: negative QPs) |
+| high10_crop_fade | testsrc2 fade 318x238 | High 10, cropping, weighted P and B |
+| high422_cabac | testsrc2+noise 352x288 | High 4:2:2 8-bit, B-pyramid |
+| high422_10_cabac | mandelbrot+noise 352x288 | High 4:2:2 10-bit, B-frames, weightp |
+| high422_10_cavlc | testsrc2+noise 352x288 | High 4:2:2 10-bit, CAVLC |
+| high422_10_intra | testsrc2+noise 640x360 | High 4:2:2 10-bit, intra only |
+| high422_10_8x8_crop | mandelbrot+noise 318x182 | High 4:2:2 10-bit, 8x8 transform, temporal direct, cropping |
+| high422_10_qp_extremes | testsrc2+noise 176x144 | High 4:2:2 10-bit, QP 60, deblock 3,3, chroma QP offset -12 |
 
 `cargo test --release -p lumen-h264 --test conformance coverage_report -- --ignored --nocapture`
 prints which coding tools each fixture exercises.
@@ -203,7 +220,7 @@ file; `H264_BENCH_ITERS=n` (and `H264_THREADS=t`, `H264_DRAFT=1`) turns it into 
 
 - Interlaced coding (field pictures, PAFF, MBAFF): streams with `frame_mbs_only_flag = 0` return
   `Error::Unsupported`.
-- Only 8-bit 4:2:0. High 10 / 4:2:2 / 4:4:4 / monochrome and lossless
+- 4:4:4, monochrome (4:0:0), bit depths above 10 and lossless
   (`qpprime_y_zero_transform_bypass`) return `Error::Unsupported`.
 - FMO (slice groups), SP/SI slices, data partitioning (Extended profile), MVC/SVC NAL units.
 - Error concealment is minimal: undecodable slices leave the prediction/previous content; missing
@@ -211,13 +228,10 @@ file; `H264_BENCH_ITERS=n` (and `H264_THREADS=t`, `H264_DRAFT=1`) turns it into 
 - No SIMD intrinsics (the hot loops are written to auto-vectorise); CABAC residual decoding is
   inherently serial and now dominates.
 
-### Extending to High 10 and 4:2:2
+### Extending to 4:4:4 and monochrome
 
-The chroma format and bit depth are isolated behind `Sps::check_supported`. The parts that are
-format-specific today: `Planes`/`FrameRow` sample type (`u8`; a `u16` variant or a generic sample
-type is needed for bit depths > 8, together with `Clip1` ranges, `QpBdOffset` in the QP
-derivations and the scaled tC0/alpha/beta in deblocking), chroma block geometry (`MbWidthC` /
-`MbHeightC` = 8x8 in `slicedec`, `intra::pred_chroma`, the chroma DC transform and the CABAC/CAVLC
-chroma DC parsing — the 2x4 total_zeros tables and ctxBlockCat 3 `NumC8x8` handling are already in
-place), chroma motion-vector vertical scaling and the chroma deblocking edges (4:2:2 has four
-horizontal chroma edges).
+Chroma geometry lives in `picture::Format` (`mb_hc`, 8 or 16 chroma lines per macroblock) and the
+places that read it: `slicedec` (residual layout, PCM, chroma DC), `intra::pred_chroma`, chroma
+motion in `predict_block` and the chroma edges in `deblock`. 4:4:4 codes chroma like luma (three
+"luma" planes, separate_colour_plane), monochrome skips chroma syntax and outputs mid-gray chroma.
+Bit depths above 10 need wider deblocking lanes past 12 bits (they are 16-bit today).
